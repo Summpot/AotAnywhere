@@ -4,8 +4,8 @@ AotAnywhere supports executing `zig build` before the NativeAOT linking step. Th
 
 ## Key Features
 
-1. **Configurable GLIBC Version**: Target older Linux distributions (e.g. Ubuntu 20.04) via `<GlibcVersion>2.31</GlibcVersion>`.
-2. **Automatic Zig Build Execution**: Automatically invokes `zig build` with the exact target triple (e.g. `x86_64-linux-gnu.2.31`) and optimization mode matching your project configuration.
+1. **Configurable GLIBC Version**: Target older Linux distributions (e.g. Debian 10 / Buster via `<GlibcVersion>2.28</GlibcVersion>`, Ubuntu 20.04 via `<GlibcVersion>2.31</GlibcVersion>`).
+2. **Automatic Zig Build Execution**: Automatically invokes `zig build` with the exact target triple (e.g. `x86_64-linux-gnu.2.28` or `x86_64-linux-gnu.2.31`) and optimization mode matching your project configuration.
 3. **Automatic Library Registration**: Discovers all static libraries (`.a` / `.lib`) produced by `zig build` in the output directory and registers them directly into `@(NativeLibrary)` for static linking.
 4. **Automatic Search Path Injection**: Appends `-L<output>/lib` into `@(LinkerArg)` so references to `-l<name>` resolve seamlessly.
 
