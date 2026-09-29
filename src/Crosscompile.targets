@@ -92,7 +92,7 @@
        AotAnywhereWindowsLink task and a Windows host links win-* natively. -->
   <Target Name="PointLinkerToZig"
           DependsOnTargets="SetPathToZig"
-          BeforeTargets="SetupOSSpecificProps">
+          BeforeTargets="SetupOSSpecificProps;UniFFIBuildCargo;BeforeCompile">
 
     <PropertyGroup Condition="!$([MSBuild]::IsOSPlatform('Windows')) and !$(RuntimeIdentifier.StartsWith('win'))">
       <CppLinker>$(_AotAnywhereZigExe)</CppLinker>
@@ -112,7 +112,7 @@
   </Target>
 
   <Target Name="SetPathToZig"
-          BeforeTargets="SetupOSSpecificProps">
+          BeforeTargets="SetupOSSpecificProps;UniFFIBuildCargo;BeforeCompile">
 
     <PropertyGroup Condition="$(HostRuntimeIdentifier.StartsWith('win-'))">
       <ZigPath Condition="$(HostRuntimeIdentifier.EndsWith('-x86'))">$(PkgVezel_Zig_Toolsets_win-x86)/tools</ZigPath>
@@ -160,8 +160,7 @@
 
   <!-- BEGIN: Works around ILCompiler targets not detecting this as a cross compilation -->
   <Target Name="OverwriteTargetTriple"
-          AfterTargets="SetupOSSpecificProps"
-          BeforeTargets="LinkNative">
+          BeforeTargets="LinkNative;UniFFIBuildCargo;BeforeCompile">
 
     <PropertyGroup>
       <CrossCompileRid />
