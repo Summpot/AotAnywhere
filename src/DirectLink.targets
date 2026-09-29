@@ -70,6 +70,13 @@
          zig, computed once in SetPathToZig (a DependsOn above); it degrades to
          a bare PATH `zig` when $(ZigPath) is a dangling '/tools' (the known
          consumer restore gap), matching how the shim flow degrades. -->
+    <PropertyGroup>
+      <AotAnywhereLinuxSysroot Condition="'$(AotAnywhereLinuxSysroot)' == ''">$(MSBuildThisFileDirectory)linux-sysroot</AotAnywhereLinuxSysroot>
+      <_AotAnywhereLinuxArchDir>$(AotAnywhereLinuxSysroot)/$(CrossCompileArch)</_AotAnywhereLinuxArchDir>
+      <_AotAnywhereGlibcCompatC>$(AotAnywhereLinuxSysroot)/glibc-compat.c</_AotAnywhereGlibcCompatC>
+      <_AotAnywhereGlibcCompatObj>$([System.IO.Path]::GetDirectoryName($(NativeObject)))/glibc-compat.o</_AotAnywhereGlibcCompatObj>
+    </PropertyGroup>
+
     <ItemGroup>
       <!-- Linker arguments the SDK computes that zig cc cannot take: no libz
            in zig's Linux sysroots (net8 always adds -lz; net9+ link the
@@ -81,7 +88,20 @@
       <_AotAnywhereDroppedLinkerArg Include="-pie -Wl,-pie" />
       <_AotAnywhereDroppedLinkerArg Include="-Wl,-e0x0" />
       <_AotAnywhereDroppedLinkerArg Include="-Wl,-e,0x0" />
+      <_AotAnywhereDroppedLinkerArg Include="-lfreetype" />
+      <_AotAnywhereDroppedLinkerArg Include="-static-libstdc++" />
+      <_AotAnywhereDroppedLinkerArg Include="-static-libgcc" />
+      <_AotAnywhereDroppedLinkerArg Include="-lstdc++" />
+      <_AotAnywhereStdCppCompat Include="@(LinkerArg)" Condition="$([System.String]::Copy('%(Identity)').Contains('libstdc++compat.a'))" />
+      <_AotAnywhereDroppedLinkerArg Include="@(_AotAnywhereStdCppCompat)" />
+      <!-- Drop any Windows MSVC import libraries (.lib) that leaked into LinkerArg from host Windows packages -->
+      <_AotAnywhereLeakedWinLibs Include="@(LinkerArg)" Condition="$([System.String]::Copy('%(Identity)').EndsWith('.lib'))" />
+      <_AotAnywhereDroppedLinkerArg Include="@(_AotAnywhereLeakedWinLibs)" />
     </ItemGroup>
+
+    <!-- Compile glibc compatibility shim if present -->
+    <Exec Condition="Exists('$(_AotAnywhereGlibcCompatC)')"
+          Command="&quot;$(_AotAnywhereZigExe)&quot; cc --target=$(TargetTriple) -c &quot;$(_AotAnywhereGlibcCompatC)&quot; -o &quot;$(_AotAnywhereGlibcCompatObj)&quot;" />
 
     <ItemGroup>
       <!-- The same command line the SDK's LinkNative builds for a non-Apple
@@ -92,7 +112,9 @@
            applies here). -->
       <_AotAnywhereLinkArg Include="-Wl,-u,__Module" />
       <_AotAnywhereLinkArg Include="&quot;$(NativeObject)&quot;" />
+      <_AotAnywhereLinkArg Include="&quot;$(_AotAnywhereGlibcCompatObj)&quot;" Condition="Exists('$(_AotAnywhereGlibcCompatC)')" />
       <_AotAnywhereLinkArg Include="-o &quot;$(NativeBinary)&quot;" />
+      <_AotAnywhereLinkArg Include="-L&quot;$(_AotAnywhereLinuxArchDir)&quot;" Condition="Exists('$(_AotAnywhereLinuxArchDir)')" />
       <_AotAnywhereLinkArg Include="-Wl,--version-script=&quot;$(ExportsFile)&quot;" Condition="'$(ExportsFile)' != ''" />
       <_AotAnywhereLinkArg Include="-Wl,--export-dynamic" Condition="'$(ExportsFile)' != ''" />
       <!-- lld (16+) errors on version-script symbols that are not defined,
@@ -102,6 +124,10 @@
            fixup). -->
       <_AotAnywhereLinkArg Include="-Wl,--undefined-version" Condition="'$(ExportsFile)' != ''" />
       <_AotAnywhereLinkArg Include="@(LinkerArg)" Exclude="@(_AotAnywhereDroppedLinkerArg)" />
+      <_AotAnywhereLinkArg Include="&quot;$(_AotAnywhereLinuxArchDir)/libstdc++.a&quot;" Condition="Exists('$(_AotAnywhereLinuxArchDir)/libstdc++.a')" />
+      <_AotAnywhereLinkArg Include="&quot;$(_AotAnywhereLinuxArchDir)/libsupc++.a&quot;" Condition="Exists('$(_AotAnywhereLinuxArchDir)/libsupc++.a')" />
+      <_AotAnywhereLinkArg Include="&quot;$(_AotAnywhereLinuxArchDir)/libgcc.a&quot;" Condition="Exists('$(_AotAnywhereLinuxArchDir)/libgcc.a')" />
+      <_AotAnywhereLinkArg Include="&quot;$(_AotAnywhereLinuxArchDir)/libgcc_eh.a&quot;" Condition="Exists('$(_AotAnywhereLinuxArchDir)/libgcc_eh.a')" />
       <_AotAnywhereLinkArg Include="-Wl,--discard-all" />
       <_AotAnywhereLinkArg Include="-Wl,--gc-sections" />
     </ItemGroup>

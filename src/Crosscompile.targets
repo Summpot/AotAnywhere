@@ -104,6 +104,9 @@
       <ObjCopyName Condition="$(RuntimeIdentifier.StartsWith('linux'))">zig</ObjCopyName>
     </PropertyGroup>
 
+    <Exec Condition="$([MSBuild]::IsOSPlatform('Windows')) and !$(RuntimeIdentifier.StartsWith('win')) and !Exists('$(ZigPath)\cc.exe') and Exists('$(MSBuildThisFileDirectory)aotanywhere-cc-shim.c')"
+          Command="&quot;$(_AotAnywhereZigExe)&quot; cc &quot;$(MSBuildThisFileDirectory)aotanywhere-cc-shim.c&quot; -o &quot;$(ZigPath)\cc.exe&quot;" />
+
     <PrependPath Condition="$([MSBuild]::IsOSPlatform('Windows')) and !$(RuntimeIdentifier.StartsWith('win'))" Value="$(ZigPath)" />
 
   </Target>
@@ -186,7 +189,8 @@
       <_ComputedTargetTriple Condition="'$(CrossCompileArch)' != '' and $(CrossCompileRid.StartsWith('osx'))">$(CrossCompileArch)-macos</_ComputedTargetTriple>
       <_ComputedTargetTriple Condition="'$(CrossCompileArch)' != '' and $(CrossCompileRid.StartsWith('win'))">$(CrossCompileArch)-windows-gnu</_ComputedTargetTriple>
 
-      <TargetTriple Condition="'$(TargetTriple)' == ''">$(_ComputedTargetTriple)</TargetTriple>
+      <!-- Overwrite TargetTriple if GlibcVersion is specified, or if TargetTriple was empty or default -->
+      <TargetTriple Condition="'$(_ComputedTargetTriple)' != '' and ('$(GlibcVersion)' != '' or '$(TargetTriple)' == '' or '$(TargetTriple)' == '$(CrossCompileArch)-linux-gnu$(CrossCompileAbiSuffix)')">$(_ComputedTargetTriple)</TargetTriple>
 
       <!-- StripSymbols keeps the SDK's Unix default (true) for macOS targets.
            Apple's strip/dsymutil reject zig-linked binaries (and don't exist
@@ -203,6 +207,8 @@
            Text="AotAnywhere: cross-compiling to '$(RuntimeIdentifier)' is not supported; of the Windows targets only win-x64 and win-arm64 are." />
 
     <ItemGroup>
+      <_AotAnywhereOldTargetArg Include="@(LinkerArg)" Condition="$([System.String]::Copy('%(Identity)').StartsWith('--target='))" />
+      <LinkerArg Remove="@(_AotAnywhereOldTargetArg)" />
       <LinkerArg Include="--target=$(TargetTriple)" />
     </ItemGroup>
 
@@ -365,5 +371,4 @@
     <Message Importance="high" Text="Notarization accepted. Distribute the binary as-is: Gatekeeper fetches the ticket online on first run (bare executables cannot be stapled)." />
 
   </Target>
-
 </Project>
