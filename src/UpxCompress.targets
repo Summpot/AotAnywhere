@@ -39,7 +39,11 @@
        unpacked file and never hits its refuse-to-repack error. -->
   <PropertyGroup>
     <!-- Allow PublishAotCompressed to drive AotAnywhereUpxCompress if not explicitly set -->
-    <AotAnywhereUpxCompress Condition="'$(AotAnywhereUpxCompress)' == '' and '$(PublishAotCompressed)' != ''">$(PublishAotCompressed)</AotAnywhereUpxCompress>
+    <_UserDisabledUpx Condition="'$(AotAnywhereUpxCompress)' == 'false' or '$(PublishAotCompressed)' == 'false'">true</_UserDisabledUpx>
+    <AotAnywhereUpxCompress Condition="'$(_UserDisabledUpx)' == 'true'">false</AotAnywhereUpxCompress>
+    <AotAnywhereUpxCompress Condition="'$(_UserDisabledUpx)' != 'true' and '$(AotAnywhereUpxCompress)' == '' and ('$(PublishAotCompressed)' == 'true' or '$(PublishAot)' == 'true')">true</AotAnywhereUpxCompress>
+    <!-- Disable the PublishAotCompressed package's own buggy target so it never executes -->
+    <PublishAotCompressed>false</PublishAotCompressed>
   </PropertyGroup>
 
   <Target Name="UpxCompressBinary"
@@ -55,7 +59,7 @@
 
       <!-- Resolve UPX from PublishAotCompressed NuGet package if available -->
       <_AotAnywherePkgUpx Condition="'$(PkgPublishAotCompressed)' != ''">$([MSBuild]::NormalizePath('$(PkgPublishAotCompressed)', 'tools', '$(_AotAnywhereHostOS)-$(_AotAnywhereHostArch)', 'upx$(_AotAnywhereHostUpxExt)'))</_AotAnywherePkgUpx>
-      <_AotAnywherePkgUpx Condition="'$(_AotAnywherePkgUpx)' == '' and '$(NuGetPackageRoot)' != '' and Exists('$([MSBuild]::NormalizePath(&apos;$(NuGetPackageRoot)&apos;, &apos;publishaotcompressed&apos;, &apos;1.0.5&apos;, &apos;tools&apos;, &apos;$(_AotAnywhereHostOS)-$(_AotAnywhereHostArch)&apos;, &apos;upx$(_AotAnywhereHostUpxExt)&apos;))')">$([MSBuild]::NormalizePath('$(NuGetPackageRoot)', 'publishaotcompressed', '1.0.5', 'tools', '$(_AotAnywhereHostOS)-$(_AotAnywhereHostArch)', 'upx$(_AotAnywhereHostUpxExt)'))</_AotAnywherePkgUpx>
+      <_AotAnywherePkgUpx Condition="'$(_AotAnywherePkgUpx)' == '' and '$(NuGetPackageRoot)' != ''">$([MSBuild]::NormalizePath('$(NuGetPackageRoot)', 'publishaotcompressed', '1.0.5', 'tools', '$(_AotAnywhereHostOS)-$(_AotAnywhereHostArch)', 'upx$(_AotAnywhereHostUpxExt)'))</_AotAnywherePkgUpx>
 
       <AotAnywhereUpxPath Condition="'$(AotAnywhereUpxPath)' == '' and '$(_AotAnywherePkgUpx)' != '' and Exists('$(_AotAnywherePkgUpx)')">$(_AotAnywherePkgUpx)</AotAnywhereUpxPath>
       <AotAnywhereUpxPath Condition="'$(AotAnywhereUpxPath)' == ''">upx</AotAnywhereUpxPath>
