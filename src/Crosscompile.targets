@@ -2,7 +2,7 @@
 
   <!-- Single source of truth for ZigVersion (packed alongside this file into
        build/). Sets the default only if a consumer hasn't overridden it. -->
-  <Import Project="$(MSBuildThisFileDirectory)ZigVersion.props" />
+  <Import Project="$(MSBuildThisFileDirectory)ZigVersion.props" Condition="'$(ZigVersion)' == ''" />
 
   <PropertyGroup>
     <DisableUnsupportedError>true</DisableUnsupportedError>
