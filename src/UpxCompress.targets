@@ -53,9 +53,11 @@
       <_AotAnywhereHostArch>$([System.Runtime.InteropServices.RuntimeInformation]::OSArchitecture.ToString().ToLowerInvariant)</_AotAnywhereHostArch>
       <_AotAnywhereHostUpxExt Condition="$([MSBuild]::IsOSPlatform('Windows'))">.exe</_AotAnywhereHostUpxExt>
 
-      <_AotAnywhereBundledUpx>$([MSBuild]::NormalizePath('$(MSBuildThisFileDirectory)', 'tools', '$(_AotAnywhereHostOS)-$(_AotAnywhereHostArch)', 'upx$(_AotAnywhereHostUpxExt)'))</_AotAnywhereBundledUpx>
+      <!-- Resolve UPX from PublishAotCompressed NuGet package if available -->
+      <_AotAnywherePkgUpx Condition="'$(PkgPublishAotCompressed)' != ''">$([MSBuild]::NormalizePath('$(PkgPublishAotCompressed)', 'tools', '$(_AotAnywhereHostOS)-$(_AotAnywhereHostArch)', 'upx$(_AotAnywhereHostUpxExt)'))</_AotAnywherePkgUpx>
+      <_AotAnywherePkgUpx Condition="'$(_AotAnywherePkgUpx)' == '' and '$(NuGetPackageRoot)' != '' and Exists('$([MSBuild]::NormalizePath(&apos;$(NuGetPackageRoot)&apos;, &apos;publishaotcompressed&apos;, &apos;1.0.5&apos;, &apos;tools&apos;, &apos;$(_AotAnywhereHostOS)-$(_AotAnywhereHostArch)&apos;, &apos;upx$(_AotAnywhereHostUpxExt)&apos;))')">$([MSBuild]::NormalizePath('$(NuGetPackageRoot)', 'publishaotcompressed', '1.0.5', 'tools', '$(_AotAnywhereHostOS)-$(_AotAnywhereHostArch)', 'upx$(_AotAnywhereHostUpxExt)'))</_AotAnywherePkgUpx>
 
-      <AotAnywhereUpxPath Condition="'$(AotAnywhereUpxPath)' == '' and Exists('$(_AotAnywhereBundledUpx)')">$(_AotAnywhereBundledUpx)</AotAnywhereUpxPath>
+      <AotAnywhereUpxPath Condition="'$(AotAnywhereUpxPath)' == '' and '$(_AotAnywherePkgUpx)' != '' and Exists('$(_AotAnywherePkgUpx)')">$(_AotAnywherePkgUpx)</AotAnywhereUpxPath>
       <AotAnywhereUpxPath Condition="'$(AotAnywhereUpxPath)' == ''">upx</AotAnywhereUpxPath>
       <_AotAnywhereUpxPublishedBinary>$(PublishDir)$(TargetName)$(NativeBinaryExt)</_AotAnywhereUpxPublishedBinary>
 
@@ -90,5 +92,13 @@
     <Exec Command="&quot;$(AotAnywhereUpxPath)&quot; $(_UpxArgs) &quot;$(_AotAnywhereUpxPublishedBinary)&quot;" />
 
   </Target>
+
+  <!-- Override PublishAotCompressed package's built-in target.
+       The package's target derives the UPX host binary from target RID instead of host OS,
+       causing errors on Windows when cross-compiling to Linux. We override it with a no-op;
+       AotAnywhere's UpxCompressBinary runs after CopyNativeBinary with the host UPX. -->
+  <Target Name="UpxCompress"
+          Condition="'$(PublishAotCompressed)' != 'false'"
+          AfterTargets="LinkNative" />
 
 </Project>
