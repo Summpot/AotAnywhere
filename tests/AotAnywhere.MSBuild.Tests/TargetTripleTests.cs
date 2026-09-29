@@ -37,4 +37,39 @@ public class TargetTripleTests
         await Assert.That(result.Items("LinkerArg").Any(a => a == "--target=aarch64-linux-gnu"))
             .IsTrue();
     }
+
+    [Test]
+    [Arguments("linux-x64", "2.31", "x86_64-linux-gnu.2.31")]
+    [Arguments("linux-arm64", "2.28", "aarch64-linux-gnu.2.28")]
+    [Arguments("linux-arm", "2.31", "arm-linux-gnueabihf.2.31")]
+    public async Task GlibcVersionAppendsToTriple(string rid, string glibcVersion, string expected)
+    {
+        var result = Harness.Run("OverwriteTargetTriple",
+            new Dictionary<string, string>
+            {
+                ["RuntimeIdentifier"] = rid,
+                ["GlibcVersion"] = glibcVersion
+            });
+
+        await Assert.That(result.Success)
+            .IsTrue().Because($"OverwriteTargetTriple failed: {result.ErrorText}");
+        await Assert.That(result.Prop("TargetTriple")).IsEqualTo(expected);
+        await Assert.That(result.Items("LinkerArg").Any(a => a == $"--target={expected}"))
+            .IsTrue();
+    }
+
+    [Test]
+    public async Task CustomTargetTripleIsPreserved()
+    {
+        var result = Harness.Run("OverwriteTargetTriple",
+            new Dictionary<string, string>
+            {
+                ["RuntimeIdentifier"] = "linux-x64",
+                ["TargetTriple"] = "custom-x86_64-linux-gnu"
+            });
+
+        await Assert.That(result.Success)
+            .IsTrue().Because($"OverwriteTargetTriple failed: {result.ErrorText}");
+        await Assert.That(result.Prop("TargetTriple")).IsEqualTo("custom-x86_64-linux-gnu");
+    }
 }

@@ -1,0 +1,97 @@
+<Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+
+  <!-- ===================================================================== -->
+  <!-- 1. Zig Package Manager & Build System Configuration                   -->
+  <!-- ===================================================================== -->
+  <PropertyGroup>
+    <!-- Auto-discover build.zig if not explicitly provided -->
+    <ZigBuildProject Condition="'$(ZigBuildProject)' == '' and Exists('$(MSBuildProjectDirectory)\build.zig')">$(MSBuildProjectDirectory)\build.zig</ZigBuildProject>
+    <ZigBuildProject Condition="'$(ZigBuildProject)' == '' and Exists('$(MSBuildProjectDirectory)\native\build.zig')">$(MSBuildProjectDirectory)\native\build.zig</ZigBuildProject>
+    <ZigBuildProject Condition="'$(ZigBuildProject)' == '' and Exists('$(MSBuildProjectDirectory)\zig\build.zig')">$(MSBuildProjectDirectory)\zig\build.zig</ZigBuildProject>
+
+    <!-- Auto-enable if project found or explicitly enabled -->
+    <ZigBuildEnabled Condition="'$(ZigBuildEnabled)' == '' and '$(ZigBuildProject)' != '' and Exists('$(ZigBuildProject)')">true</ZigBuildEnabled>
+    <ZigBuildEnabled Condition="'$(ZigBuildEnabled)' == ''">false</ZigBuildEnabled>
+
+    <!-- Build optimization profile: ReleaseFast, ReleaseSmall, ReleaseSafe, or Debug -->
+    <ZigBuildOptimize Condition="'$(ZigBuildOptimize)' == '' and '$(Configuration)' == 'Release'">ReleaseFast</ZigBuildOptimize>
+    <ZigBuildOptimize Condition="'$(ZigBuildOptimize)' == ''">Debug</ZigBuildOptimize>
+
+    <!-- Output directory where built libraries land -->
+    <ZigBuildOutputDir Condition="'$(ZigBuildOutputDir)' == ''">$([System.IO.Path]::GetFullPath('$(IntermediateOutputPath)zig-out'))</ZigBuildOutputDir>
+
+    <!-- Target triple passed to zig build (defaults to TargetTriple computed by AotAnywhere) -->
+    <ZigBuildTarget Condition="'$(ZigBuildTarget)' == '' and '$(TargetTriple)' != ''">$(TargetTriple)</ZigBuildTarget>
+
+    <!-- Automatically register generated static libraries into NativeLibrary -->
+    <ZigAutoLinkLibraries Condition="'$(ZigAutoLinkLibraries)' == ''">true</ZigAutoLinkLibraries>
+  </PropertyGroup>
+
+  <!-- ===================================================================== -->
+  <!-- 2. Target: Execute Zig Build                                          -->
+  <!-- ===================================================================== -->
+  <Target Name="AotAnywhereZigBuild"
+          BeforeTargets="BeforeCompile;CoreCompile;LinkNative;AotAnywhereDirectLinkNative;AotAnywhereWindowsLink"
+          DependsOnTargets="SetupOSSpecificProps;OverwriteTargetTriple;SetPathToZig;PointLinkerToZig"
+          Condition="'$(ZigBuildEnabled)' == 'true' and '$(ZigBuildProject)' != '' and Exists('$(ZigBuildProject)')">
+
+    <PropertyGroup>
+      <_ZigBuildProjectDir Condition="!HasTrailingSlash('$(ZigBuildProject)') and $([System.String]::Copy('$(ZigBuildProject)').EndsWith('.zig'))">$([System.IO.Path]::GetDirectoryName('$([System.IO.Path]::GetFullPath("$(ZigBuildProject)"))'))</_ZigBuildProjectDir>
+      <_ZigBuildProjectDir Condition="'$(_ZigBuildProjectDir)' == ''">$([System.IO.Path]::GetFullPath('$(ZigBuildProject)'))</_ZigBuildProjectDir>
+
+      <!-- Target argument for zig build -->
+      <_ZigTargetArg Condition="'$(ZigBuildTarget)' != ''">-Dtarget=$(ZigBuildTarget)</_ZigTargetArg>
+      <_ZigTargetArg Condition="'$(_ZigTargetArg)' == '' and '$(TargetTriple)' != ''">-Dtarget=$(TargetTriple)</_ZigTargetArg>
+
+      <!-- Construct zig build command -->
+      <_ZigBuildCommand>&quot;$(_AotAnywhereZigExe)&quot; build --prefix &quot;$(ZigBuildOutputDir)&quot; $(_ZigTargetArg) -Doptimize=$(ZigBuildOptimize) $(ZigBuildArgs)</_ZigBuildCommand>
+    </PropertyGroup>
+
+    <Message Importance="high" Text="[AotAnywhere] Running Zig build: $(_ZigBuildCommand) in $(_ZigBuildProjectDir)" />
+
+    <MakeDir Directories="$(ZigBuildOutputDir)" />
+
+    <Exec Command="$(_ZigBuildCommand)"
+          WorkingDirectory="$(_ZigBuildProjectDir)"
+          StandardOutputImportance="Normal"
+          StandardErrorImportance="High" />
+
+  </Target>
+
+  <!-- ===================================================================== -->
+  <!-- 3. Target: Register Output Static Libraries                           -->
+  <!-- ===================================================================== -->
+  <Target Name="AotAnywhereRegisterZigOutputs"
+          AfterTargets="AotAnywhereZigBuild"
+          BeforeTargets="LinkNative;AotAnywhereDirectLinkNative;AotAnywhereWindowsLink"
+          Condition="'$(ZigBuildEnabled)' == 'true' and '$(ZigAutoLinkLibraries)' == 'true'">
+
+    <ItemGroup>
+      <_ZigDiscoveredLibs Include="$(ZigBuildOutputDir)\lib\*.a" />
+      <_ZigDiscoveredLibs Include="$(ZigBuildOutputDir)\lib\*.lib" />
+    </ItemGroup>
+
+    <Message Importance="high" Condition="'@(_ZigDiscoveredLibs)' != ''"
+             Text="[AotAnywhere] Automatically registered native libraries from Zig build: @(_ZigDiscoveredLibs)" />
+
+    <ItemGroup Condition="'@(_ZigDiscoveredLibs)' != ''">
+      <!-- Register as NativeLibrary for NativeAOT static linking -->
+      <NativeLibrary Include="@(_ZigDiscoveredLibs)" />
+      <!-- Add library search path to LinkerArg -->
+      <LinkerArg Include="-L$([System.IO.Path]::GetFullPath('$([System.IO.Path]::Combine(&quot;$(ZigBuildOutputDir)&quot;, &quot;lib&quot;))'))" />
+    </ItemGroup>
+
+  </Target>
+
+  <!-- ===================================================================== -->
+  <!-- 4. Target: Zig Clean                                                  -->
+  <!-- ===================================================================== -->
+  <Target Name="AotAnywhereZigClean"
+          AfterTargets="Clean"
+          Condition="'$(ZigBuildEnabled)' == 'true' and '$(ZigBuildProject)' != '' and Exists('$(ZigBuildProject)')">
+
+    <RemoveDir Directories="$(ZigBuildOutputDir)" Condition="Exists('$(ZigBuildOutputDir)')" />
+
+  </Target>
+
+</Project>
