@@ -37,16 +37,30 @@
        No incrementality guard is needed: CopyNativeBinary re-copies a fresh
        uncompressed binary from obj on every publish, so UPX always packs an
        unpacked file and never hits its refuse-to-repack error. -->
+  <PropertyGroup>
+    <!-- Allow PublishAotCompressed to drive AotAnywhereUpxCompress if not explicitly set -->
+    <AotAnywhereUpxCompress Condition="'$(AotAnywhereUpxCompress)' == '' and '$(PublishAotCompressed)' != ''">$(PublishAotCompressed)</AotAnywhereUpxCompress>
+  </PropertyGroup>
+
   <Target Name="UpxCompressBinary"
           Condition="'$(AotAnywhereUpxCompress)' == 'true'"
           AfterTargets="CopyNativeBinary">
 
     <PropertyGroup>
+      <_AotAnywhereHostOS Condition="$([MSBuild]::IsOSPlatform('Windows'))">win</_AotAnywhereHostOS>
+      <_AotAnywhereHostOS Condition="$([MSBuild]::IsOSPlatform('OSX'))">osx</_AotAnywhereHostOS>
+      <_AotAnywhereHostOS Condition="$([MSBuild]::IsOSPlatform('Linux'))">linux</_AotAnywhereHostOS>
+      <_AotAnywhereHostArch>$([System.Runtime.InteropServices.RuntimeInformation]::OSArchitecture.ToString().ToLowerInvariant)</_AotAnywhereHostArch>
+      <_AotAnywhereHostUpxExt Condition="$([MSBuild]::IsOSPlatform('Windows'))">.exe</_AotAnywhereHostUpxExt>
+
+      <_AotAnywhereBundledUpx>$([MSBuild]::NormalizePath('$(MSBuildThisFileDirectory)', 'tools', '$(_AotAnywhereHostOS)-$(_AotAnywhereHostArch)', 'upx$(_AotAnywhereHostUpxExt)'))</_AotAnywhereBundledUpx>
+
+      <AotAnywhereUpxPath Condition="'$(AotAnywhereUpxPath)' == '' and Exists('$(_AotAnywhereBundledUpx)')">$(_AotAnywhereBundledUpx)</AotAnywhereUpxPath>
       <AotAnywhereUpxPath Condition="'$(AotAnywhereUpxPath)' == ''">upx</AotAnywhereUpxPath>
       <_AotAnywhereUpxPublishedBinary>$(PublishDir)$(TargetName)$(NativeBinaryExt)</_AotAnywhereUpxPublishedBinary>
 
       <_UpxArgs>--best</_UpxArgs>
-      <_UpxArgs Condition="'$(AotAnywhereUpxLzma)' == 'true'">$(_UpxArgs) --lzma</_UpxArgs>
+      <_UpxArgs Condition="'$(AotAnywhereUpxLzma)' == 'true' or '$(PublishLzmaCompressed)' == 'true'">$(_UpxArgs) --lzma</_UpxArgs>
       <!-- UPX mis-detects some x86 PEs and needs the nudge (same workaround
            as PublishAotCompressed). -->
       <_UpxArgs Condition="$(RuntimeIdentifier.EndsWith('-x86'))">$(_UpxArgs) --force</_UpxArgs>
