@@ -97,6 +97,9 @@
       <!-- Drop any Windows MSVC import libraries (.lib) that leaked into LinkerArg from host Windows packages -->
       <_AotAnywhereLeakedWinLibs Include="@(LinkerArg)" Condition="$([System.String]::Copy('%(Identity)').EndsWith('.lib'))" />
       <_AotAnywhereDroppedLinkerArg Include="@(_AotAnywhereLeakedWinLibs)" />
+      <!-- Drop any target arguments from LinkerArg so we can control it explicitly -->
+      <_AotAnywhereDroppedTarget Include="@(LinkerArg)" Condition="$([System.String]::Copy('%(Identity)').StartsWith('--target='))" />
+      <_AotAnywhereDroppedLinkerArg Include="@(_AotAnywhereDroppedTarget)" />
     </ItemGroup>
 
     <!-- Compile glibc compatibility shim if present -->
@@ -110,6 +113,7 @@
            link (the SDK's equivalent, an lld linker script, is only emitted
            for LinkerFlavor=lld; on Linux the SDK defaults to bfd so it never
            applies here). -->
+      <_AotAnywhereLinkArg Include="--target=$(TargetTriple)" Condition="'$(TargetTriple)' != ''" />
       <_AotAnywhereLinkArg Include="-Wl,-u,__Module" />
       <_AotAnywhereLinkArg Include="&quot;$(NativeObject)&quot;" />
       <_AotAnywhereLinkArg Include="&quot;$(_AotAnywhereGlibcCompatObj)&quot;" Condition="Exists('$(_AotAnywhereGlibcCompatC)')" />
@@ -134,7 +138,7 @@
 
     <MakeDir Directories="$([System.IO.Path]::GetDirectoryName($(NativeBinary)))" />
 
-    <Message Importance="high" Text="AotAnywhere: linking $(NativeBinary) with zig directly" />
+    <Message Importance="high" Text="AotAnywhere: linking $(NativeBinary) with zig directly (target: $(TargetTriple))" />
 
     <Exec Command="&quot;$(_AotAnywhereZigExe)&quot; cc @(_AotAnywhereLinkArg, ' ')"
           CustomWarningRegularExpression="$(IlcCppLinkerCustomWarningRegularExpression)" />

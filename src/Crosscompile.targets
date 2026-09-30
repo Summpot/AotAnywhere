@@ -159,8 +159,8 @@
   </Target>
 
   <!-- BEGIN: Works around ILCompiler targets not detecting this as a cross compilation -->
-  <Target Name="OverwriteTargetTriple"
-          BeforeTargets="LinkNative;UniFFIBuildCargo;BeforeCompile">
+  <Target Name="_AotAnywhereComputeTargetTriple"
+          BeforeTargets="UniFFIBuildCargo;BeforeCompile">
 
     <PropertyGroup>
       <CrossCompileRid />
@@ -190,16 +190,38 @@
 
       <!-- Overwrite TargetTriple if GlibcVersion is specified, or if TargetTriple was empty or default -->
       <TargetTriple Condition="'$(_ComputedTargetTriple)' != '' and ('$(GlibcVersion)' != '' or '$(TargetTriple)' == '' or '$(TargetTriple)' == '$(CrossCompileArch)-linux-gnu$(CrossCompileAbiSuffix)')">$(_ComputedTargetTriple)</TargetTriple>
+    </PropertyGroup>
 
-      <!-- StripSymbols keeps the SDK's Unix default (true) for macOS targets.
-           Apple's strip/dsymutil reject zig-linked binaries (and don't exist
-           on Linux/Windows hosts), but the SDK's dsymutil+strip step lives
-           inside LinkNative, which the DirectLink takeover pre-satisfies;
-           the strip itself happens at link time via ld64's -x in
-           _AotAnywhereComputeMacLinkArgs. The SDK's Apple stripper probes in
-           SetupOSSpecificProps are IgnoreExitCode Execs whose Errors only
-           fire for non-Apple platforms, so StripSymbols=true is safe on
-           mac-less hosts too. -->
+  </Target>
+
+  <Target Name="OverwriteTargetTriple"
+          DependsOnTargets="_AotAnywhereComputeTargetTriple"
+          AfterTargets="SetupOSSpecificProps"
+          BeforeTargets="LinkNative">
+
+    <PropertyGroup>
+      <CrossCompileRid />
+      <CrossCompileRid>$(RuntimeIdentifier)</CrossCompileRid>
+
+      <CrossCompileArch />
+      <CrossCompileArch Condition="$(CrossCompileRid.EndsWith('-x64'))">x86_64</CrossCompileArch>
+      <CrossCompileArch Condition="$(CrossCompileRid.EndsWith('-arm64'))">aarch64</CrossCompileArch>
+      <CrossCompileArch Condition="$(CrossCompileRid.EndsWith('-arm'))">arm</CrossCompileArch>
+
+      <CrossCompileAbiSuffix />
+      <CrossCompileAbiSuffix Condition="'$(CrossCompileArch)' == 'arm'">eabihf</CrossCompileAbiSuffix>
+
+      <_GlibcVersionSuffix />
+      <_GlibcVersionSuffix Condition="'$(GlibcVersion)' != '' and !$(GlibcVersion.StartsWith('.'))">.$(GlibcVersion)</_GlibcVersionSuffix>
+      <_GlibcVersionSuffix Condition="'$(GlibcVersion)' != '' and $(GlibcVersion.StartsWith('.'))">$(GlibcVersion)</_GlibcVersionSuffix>
+
+      <_ComputedTargetTriple />
+      <_ComputedTargetTriple Condition="'$(CrossCompileArch)' != '' and $(CrossCompileRid.StartsWith('linux'))">$(CrossCompileArch)-linux-gnu$(CrossCompileAbiSuffix)$(_GlibcVersionSuffix)</_ComputedTargetTriple>
+      <_ComputedTargetTriple Condition="'$(CrossCompileArch)' != '' and ($(CrossCompileRid.StartsWith('linux-musl')) or $(CrossCompileRid.StartsWith('alpine')))">$(CrossCompileArch)-linux-musl$(CrossCompileAbiSuffix)</_ComputedTargetTriple>
+      <_ComputedTargetTriple Condition="'$(CrossCompileArch)' != '' and $(CrossCompileRid.StartsWith('osx'))">$(CrossCompileArch)-macos</_ComputedTargetTriple>
+      <_ComputedTargetTriple Condition="'$(CrossCompileArch)' != '' and $(CrossCompileRid.StartsWith('win'))">$(CrossCompileArch)-windows-gnu</_ComputedTargetTriple>
+
+      <TargetTriple Condition="'$(_ComputedTargetTriple)' != '' and ('$(GlibcVersion)' != '' or '$(TargetTriple)' == '' or '$(TargetTriple)' == '$(CrossCompileArch)-linux-gnu$(CrossCompileAbiSuffix)')">$(_ComputedTargetTriple)</TargetTriple>
     </PropertyGroup>
 
     <Error Condition="'$(_AotAnywhereWindowsCross)' == 'true' and '$(CrossCompileArch)' == ''"
